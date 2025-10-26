@@ -18,8 +18,8 @@ Servo sensor (giro) → Pin 5
 
 Servo barrido → Pin 6
 
-Buzzer → Pin 7 (opcional si quieres otro pin puedes cambiarlo en el código)
+Buzzer → Pin 7
 
 GNDs todos comunes (Arduino, servos, sensor, buzzer)
 
-VCC del sensor y servos → 5V (si usas fuente externa para servos, conecta GNDs)
+VCC del sensor y servos → 5V 
