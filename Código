@@ -1,1 +1,137 @@
+#include <Servo.h>
+
+// Pines según tu indicación
+const int LED_ROJO_PIN   = 1;   // OJO: Pin 1 = TX (advertencia sobre interferencias)
+const int LED_VERDE_PIN  = 2;
+const int TRIG_PIN       = 3;
+const int ECHO_PIN       = 4;
+const int SERVO_SENSOR_PIN = 5;
+const int SERVO_BARRIDO_PIN = 6;
+const int BUZZER_PIN     = 7;   // Elegido por mí (no especificaste uno)
+
+// Parámetros de funcionamiento
+const int DISTANCIA_TRIGGER_CM = 20; // umbral en cm
+const int SCAN_START = 0;    // ángulo inicial de barrido del sensor
+const int SCAN_END   = 180;  // ángulo final de barrido del sensor
+const int SCAN_STEP  = 2;    // paso de barrido del sensor (grados)
+const int SCAN_DELAY_MS = 60; // tiempo entre pasos del servo sensor
+
+const int BARRIDO_RANGE = 30; // rango (±) alrededor del ángulo detectado para barrido del segundo servo
+const int BARRIDO_STEP = 2;
+const int BARRIDO_DELAY_MS = 40;
+
+Servo servoSensor;
+Servo servoBarrido;
+
+long leerDistanciaCM() {
+  // Genera pulso de trig
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  // Lee duración del pulso de echo (microsegundos)
+  long duracion = pulseIn(ECHO_PIN, HIGH, 30000); // timeout 30 ms (aprox 5 m)
+  if (duracion == 0) return -1; // no echo (fuera de rango o sin respuesta)
+
+  // velocidad del sonido ~ 0.034 cm/us; distancia = duracion * 0.034 / 2
+  long distancia = duracion * 0.034 / 2.0;
+  return distancia;
+}
+
+void setup() {
+  // Configuraciones de pines
+  pinMode(LED_ROJO_PIN, OUTPUT);
+  pinMode(LED_VERDE_PIN, OUTPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  // Arranque de servos
+  servoSensor.attach(SERVO_SENSOR_PIN);
+  servoBarrido.attach(SERVO_BARRIDO_PIN);
+
+  // Posiciones iniciales
+  servoSensor.write(90);
+  servoBarrido.write(90);
+
+  // Estado inicial de LEDs y buzzer
+  digitalWrite(LED_VERDE_PIN, HIGH); // verde ON mientras no detecta
+  digitalWrite(LED_ROJO_PIN, LOW);
+  noTone(BUZZER_PIN);
+}
+
+void loop() {
+  // Barrido de ida (SCANNING)
+  for (int ang = SCAN_START; ang <= SCAN_END; ang += SCAN_STEP) {
+    servoSensor.write(ang);
+    delay(SCAN_DELAY_MS);
+
+    // Mientras esté escaneando, LED verde ON
+    digitalWrite(LED_VERDE_PIN, HIGH);
+    digitalWrite(LED_ROJO_PIN, LOW);
+
+    long dist = leerDistanciaCM();
+    if (dist > 0 && dist <= DISTANCIA_TRIGGER_CM) {
+      // OBJETO DETECTADO: parar servo sensor y ejecutar barrido del servo de barrido
+      digitalWrite(LED_VERDE_PIN, LOW);
+      digitalWrite(LED_ROJO_PIN, HIGH);
+      tone(BUZZER_PIN, 1000); // 1 kHz mientras barre
+
+      ejecutarBarridoEn(ang);
+
+      noTone(BUZZER_PIN);
+      digitalWrite(LED_ROJO_PIN, LOW);
+      digitalWrite(LED_VERDE_PIN, HIGH);
+
+      // Continúa el barrido desde el ángulo actual
+    }
+  }
+
+  // Barrido de vuelta (SCAN reverse)
+  for (int ang = SCAN_END; ang >= SCAN_START; ang -= SCAN_STEP) {
+    servoSensor.write(ang);
+    delay(SCAN_DELAY_MS);
+
+    digitalWrite(LED_VERDE_PIN, HIGH);
+    digitalWrite(LED_ROJO_PIN, LOW);
+
+    long dist = leerDistanciaCM();
+    if (dist > 0 && dist <= DISTANCIA_TRIGGER_CM) {
+      digitalWrite(LED_VERDE_PIN, LOW);
+      digitalWrite(LED_ROJO_PIN, HIGH);
+      tone(BUZZER_PIN, 1000);
+
+      ejecutarBarridoEn(ang);
+
+      noTone(BUZZER_PIN);
+      digitalWrite(LED_ROJO_PIN, LOW);
+      digitalWrite(LED_VERDE_PIN, HIGH);
+    }
+  }
+}
+
+// Función que hace el barrido del servoBarrido centrado en el ángulo 'centro'
+void ejecutarBarridoEn(int centro) {
+  int inicio = centro - BARRIDO_RANGE;
+  int fin    = centro + BARRIDO_RANGE;
+
+  if (inicio < 0) inicio = 0;
+  if (fin > 180) fin = 180;
+
+  // Barrido ida
+  for (int a = inicio; a <= fin; a += BARRIDO_STEP) {
+    servoBarrido.write(a);
+    delay(BARRIDO_DELAY_MS);
+  }
+  // Barrido vuelta
+  for (int a = fin; a >= inicio; a -= BARRIDO_STEP) {
+    servoBarrido.write(a);
+    delay(BARRIDO_DELAY_MS);
+  }
+
+  // Regresa a posición neutral
+  servoBarrido.write(90);
+}
 
